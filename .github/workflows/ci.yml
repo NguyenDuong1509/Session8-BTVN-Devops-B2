@@ -1,0 +1,51 @@
+name: Cart Service Multi-Stage Build CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build_and_compare:
+    name: Build & Compare Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Single-stage Docker Image
+        run: |
+          echo "=== BUILDING SINGLE-STAGE IMAGE ==="
+          docker build -f Dockerfile.single-stage -t cart-service:single-stage .
+
+      - name: Build Multi-stage Docker Image (Optimized)
+        run: |
+          echo "=== BUILDING MULTI-STAGE IMAGE ==="
+          docker build -f Dockerfile -t cart-service:multi-stage .
+
+      - name: Compare Image Sizes (docker images)
+        run: |
+          echo "=== DOCKER IMAGES SIZE COMPARISON ==="
+          docker images | grep cart-service
+          
+          SIZE_SINGLE=$(docker image inspect cart-service:single-stage --format='{{.Size}}')
+          SIZE_MULTI=$(docker image inspect cart-service:multi-stage --format='{{.Size}}')
+          
+          echo "Single-stage size (bytes): $SIZE_SINGLE"
+          echo "Multi-stage size (bytes): $SIZE_MULTI"
+
+      - name: Smoke Test Multi-stage Container
+        run: |
+          echo "=== SMOKE TEST RUNNING CONTAINER ==="
+          docker run -d -p 8080:8080 --name test-cart cart-service:multi-stage
+          sleep 10
+          docker logs test-cart
+          docker stop test-cart
